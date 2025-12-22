@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - Warez Torrent</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #121212; color: #ffffff; font-family: 'Segoe UI', sans-serif; }
+    .card { background: #1e1e1e; border: none; color: #ffffff; }
+    .btn-ban { background: #d32f2f; color: white; }
+    .btn-unban { background: #388e3c; color: white; }
+    .btn-delete { background: #ff5722; color: white; }
+    a { color: #bb86fc; text-decoration: none; }
+    a:hover { color: #e0bbff; }
+    h1, h2, h3, h4 { color: #bb86fc; }
+    .table { --bs-table-bg: #1e1e1e; color: #ffffff; }
+    .table th { background: #2d2d2d; color: #bb86fc; }
+    .table td { color: #e0e0e0; }
+    .text-danger { color: #ff6b6b !important; }
+    .text-success { color: #69f0ae !important; }
+    input.form-control { background: #2d2d2d; color: white; border-color: #444; }
+    input.form-control::placeholder { color: #aaa; }
+    .btn-primary { background: #2196F3; border: none; }
+    .btn-primary:hover { background: #1976D2; }
+    .nav-link { color: #bb86fc; }
+    .nav-link.active { background: #2d2d2d !important; color: white !important; }
+    .clickable { cursor: pointer; color: #bb86fc; }
+    .clickable:hover { text-decoration: underline; color: #e0bbff; }
+  </style>
+</head>
+<body class="p-4">
+  <div class="container">
+    <h1 class="text-center mb-5">🔒 Panel Admin Warez-Torrent</h1>
+
+    <!-- Login -->
+    <div id="login" class="card p-4 mx-auto" style="max-width: 400px;">
+      <h3 class="text-center mb-4">Connexion Admin</h3>
+      <input type="password" id="adminPass" class="form-control mt-3" placeholder="Mot de passe">
+      <button class="btn btn-primary w-100 mt-3" onclick="login()">Se connecter</button>
+      <div id="loginError" class="text-danger text-center mt-2 fw-bold"></div>
+    </div>
+
+    <!-- Contenu principal -->
+    <div id="mainContent" class="d-none">
+      <!-- Navigation -->
+      <ul class="nav nav-pills mb-4 justify-content-center">
+        <li class="nav-item">
+          <a class="nav-link active" href="#" onclick="showSection('dashboard')">Dashboard</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('users')">Utilisateurs</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#" onclick="showSection('stats')">Statistiques Avancées</a>
+        </li>
+      </ul>
+
+      <!-- Dashboard -->
+      <div id="dashboard" class="section">
+        <div class="row mb-4">
+          <div class="col-md-4">
+            <div class="card p-4 text-center">
+              <h4>Utilisateurs</h4>
+              <h2 id="userCount" class="text-white">0</h2>
+            </div>
+          </div>
+          <div class="col-md-8">
+            <div class="card p-4">
+              <h4>Top 10 Recherches</h4>
+              <ol id="topSearches" class="text-white"></ol>
+            </div>
+          </div>
+        </div>
+
+        <div class="card p-4 mb-4">
+          <h4>Dernières 10 Recherches</h4>
+          <table class="table table-hover">
+            <thead><tr><th>Utilisateur</th><th>Recherche</th><th>Date</th></tr></thead>
+            <tbody id="latestSearches"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Liste Utilisateurs -->
+      <div id="users" class="section d-none">
+        <h3>Liste des Utilisateurs</h3>
+        <table class="table table-hover mt-4">
+          <thead><tr><th>Username</th><th>Statut</th><th>Actions</th></tr></thead>
+          <tbody id="usersList"></tbody>
+        </table>
+      </div>
+
+      <!-- Détail Utilisateur -->
+      <div id="userDetail" class="section d-none">
+        <button class="btn btn-secondary mb-3" onclick="showSection('dashboard')">← Retour au Dashboard</button>
+        <button class="btn btn-secondary mb-3 ms-2" onclick="showSection('users')">← Retour à la liste</button>
+        <div class="card p-4 mt-3">
+          <h3>Détail de l'utilisateur : <span id="detailUsername"></span></h3>
+          <p>Statut : <span id="detailStatus"></span></p>
+          <div class="mt-3">
+            <button id="detailBanButton" class="btn btn-lg me-3"></button>
+            <button class="btn btn-delete btn-lg" onclick="deleteUserHistory(currentUsername)">Supprimer l'historique</button>
+          </div>
+        </div>
+        <h4 class="mt-5">Toutes les recherches de cet utilisateur</h4>
+        <table class="table table-hover mt-4">
+          <thead><tr><th>Recherche</th><th>Date</th></tr></thead>
+          <tbody id="userSearches"></tbody>
+        </table>
+      </div>
+
+      <!-- Statistiques Avancées -->
+      <div id="stats" class="section d-none">
+        <h3 class="text-center mb-4">📊 Statistiques Avancées</h3>
+
+        <div class="row">
+          <div class="col-md-6 mb-4">
+            <div class="card p-4">
+              <h5>Recherches par jour (30 derniers jours)</h5>
+              <canvas id="chartDaily"></canvas>
+            </div>
+          </div>
+          <div class="col-md-6 mb-4">
+            <div class="card p-4">
+              <h5>Activité par heure de la journée</h5>
+              <canvas id="chartHourly"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-6">
+            <div class="card p-4">
+              <h5>Top 5 utilisateurs les plus actifs</h5>
+              <ol id="topUsers"></ol>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="card p-4 text-center">
+              <h5>Nombre total de recherches</h5>
+              <h2 id="totalSearches" class="text-white">0</h2>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = "https://lkhapghkcowoaltvgqvs.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxraGFwZ2hrY293b2FsdHZncXZzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY0MjQwMzcsImV4cCI6MjA4MjAwMDAzN30.Aje3qYASZ3gWCaXtUW4984IgHebnbdfWAw7HE3RBsXQ";
+    const ADMIN_PASS = "titi04112010";
+
+    const { createClient } = supabase;
+    const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    let dailyChart, hourlyChart;
+    let currentUsername = null;
+
+    function login() {
+      const pass = document.getElementById('adminPass').value;
+      if (pass === ADMIN_PASS) {
+        document.getElementById('login').classList.add('d-none');
+        document.getElementById('mainContent').classList.remove('d-none');
+        showSection('dashboard');
+      } else {
+        document.getElementById('loginError').textContent = "Mot de passe incorrect";
+      }
+    }
+
+    function showSection(section) {
+      // Cache toutes les sections
+      document.querySelectorAll('.section').forEach(el => el.classList.add('d-none'));
+
+      // Affiche la section demandée
+      document.getElementById(section).classList.remove('d-none');
+
+      // Met à jour la navigation
+      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+      const activeLink = document.querySelector(`.nav-link[onclick="showSection('${section}')"]`);
+      if (activeLink) activeLink.classList.add('active');
+
+      // Charge les données si nécessaire
+      if (section === 'dashboard') loadDashboard();
+      if (section === 'users') loadUsers();
+      if (section === 'stats') loadAdvancedStats();
+    }
+
+    async function loadDashboard() {
+      const { data: users } = await supabaseClient.from('users').select('id');
+      document.getElementById('userCount').textContent = users ? users.length : 0;
+
+      const { data: history } = await supabaseClient.from('history').select('*').order('searched_at', { ascending: false }).limit(100);
+
+      const latest = document.getElementById('latestSearches');
+      latest.innerHTML = '';
+      (history || []).slice(0, 10).forEach(h => {
+        const tr = document.createElement('tr');
+        const usernameCell = h.username ? `<span class="clickable" onclick="showUserDetail('${h.username}')">${h.username}</span>` : 'Inconnu';
+        tr.innerHTML = `<td>${usernameCell}</td><td>${h.search_term || ''}</td><td>${new Date(h.searched_at).toLocaleString()}</td>`;
+        latest.appendChild(tr);
+      });
+
+      const counts = {};
+      (history || []).forEach(h => counts[h.search_term] = (counts[h.search_term] || 0) + 1);
+      const top = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0,10);
+      const topList = document.getElementById('topSearches');
+      topList.innerHTML = '';
+      top.forEach(([term, count]) => {
+        const li = document.createElement('li');
+        li.textContent = `${term} (${count})`;
+        topList.appendChild(li);
+      });
+    }
+
+    async function loadUsers() {
+      const { data: allUsers } = await supabaseClient.from('users').select('username, is_ban');
+      const usersList = document.getElementById('usersList');
+      usersList.innerHTML = '';
+      (allUsers || []).forEach(user => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td><span class="clickable" onclick="showUserDetail('${user.username}')">${user.username}</span></td>
+          <td>${user.is_ban ? '<span class="text-danger">Banni</span>' : '<span class="text-success">Actif</span>'}</td>
+          <td>
+            <button class="btn btn-sm ${user.is_ban ? 'btn-unban' : 'btn-ban'}" onclick="toggleBan('${user.username}', ${user.is_ban})">
+              ${user.is_ban ? 'Débannir' : 'Bannir'}
+            </button>
+          </td>`;
+        usersList.appendChild(tr);
+      });
+    }
+
+    async function toggleBan(username, current) {
+      const { error } = await supabaseClient.from('users').update({ is_ban: !current }).eq('username', username);
+      if (!error) {
+        loadDashboard();
+        loadUsers();
+        if (currentUsername === username) showUserDetail(username);
+      } else {
+        alert("Erreur lors du ban");
+      }
+    }
+
+    async function deleteUserHistory(username) {
+      if (confirm(`Supprimer TOUTES les recherches de ${username} ? Cette action est irréversible.`)) {
+        const { error } = await supabaseClient.from('history').delete().eq('username', username);
+        if (!error) {
+          alert("Historique supprimé !");
+          showUserDetail(username); // Rafraîchir la page
+        } else {
+          alert("Erreur lors de la suppression");
+        }
+      }
+    }
+
+    async function showUserDetail(username) {
+      currentUsername = username;
+      showSection('userDetail');
+      document.getElementById('detailUsername').textContent = username;
+
+      const { data: userData } = await supabaseClient.from('users').select('is_ban').eq('username', username).single();
+      const isBanned = userData ? userData.is_ban : false;
+      document.getElementById('detailStatus').innerHTML = isBanned ? '<span class="text-danger">Banni</span>' : '<span class="text-success">Actif</span>';
+
+      const banButton = document.getElementById('detailBanButton');
+      banButton.textContent = isBanned ? 'Débannir cet utilisateur' : 'Bannir cet utilisateur';
+      banButton.className = isBanned ? 'btn btn-unban btn-lg me-3' : 'btn btn-ban btn-lg me-3';
+      banButton.onclick = () => toggleBan(username, isBanned);
+
+      // Recherches
+      const { data } = await supabaseClient.from('history').select('*').eq('username', username).order('searched_at', { ascending: false });
+      const tbody = document.getElementById('userSearches');
+      tbody.innerHTML = '';
+      (data || []).forEach(h => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${h.search_term || ''}</td><td>${new Date(h.searched_at).toLocaleString()}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // === Statistiques Avancées ===
+    async function loadAdvancedStats() {
+      const { data: history } = await supabaseClient.from('history').select('*');
+
+      if (!history || history.length === 0) {
+        document.getElementById('stats').innerHTML += '<p class="text-center mt-5">Aucune donnée disponible</p>';
+        return;
+      }
+
+      document.getElementById('totalSearches').textContent = history.length;
+
+      // Graphique quotidien
+      const dailyData = {};
+      const today = new Date();
+      for (let i = 29; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        dailyData[dateStr] = 0;
+      }
+      history.forEach(h => {
+        const date = h.searched_at.split('T')[0];
+        if (dailyData.hasOwnProperty(date)) dailyData[date]++;
+      });
+
+      if (dailyChart) dailyChart.destroy();
+      dailyChart = new Chart(document.getElementById('chartDaily'), {
+        type: 'line',
+        data: {
+          labels: Object.keys(dailyData).reverse(),
+          datasets: [{
+            label: 'Recherches par jour',
+            data: Object.values(dailyData).reverse(),
+            borderColor: '#bb86fc',
+            backgroundColor: 'rgba(187, 134, 252, 0.2)',
+            tension: 0.4
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      // Activité horaire
+      const hourlyData = Array(24).fill(0);
+      history.forEach(h => {
+        const hour = new Date(h.searched_at).getHours();
+        hourlyData[hour]++;
+      });
+
+      if (hourlyChart) hourlyChart.destroy();
+      hourlyChart = new Chart(document.getElementById('chartHourly'), {
+        type: 'bar',
+        data: {
+          labels: Array.from({length: 24}, (_, i) => `${i}h`),
+          datasets: [{
+            label: 'Recherches par heure',
+            data: hourlyData,
+            backgroundColor: '#bb86fc'
+          }]
+        },
+        options: { responsive: true, scales: { y: { beginAtZero: true } } }
+      });
+
+      // Top 5 users
+      const userCounts = {};
+      history.forEach(h => userCounts[h.username] = (userCounts[h.username] || 0) + 1);
+      const topUsers = Object.entries(userCounts).sort((a,b) => b[1] - a[1]).slice(0,5);
+      const topList = document.getElementById('topUsers');
+      topList.innerHTML = '';
+      topUsers.forEach(([user, count]) => {
+        const li = document.createElement('li');
+        li.textContent = `${user} → ${count} recherches`;
+        topList.appendChild(li);
+      });
+    }
+  </script>
+</body>
+</html>
